@@ -1,4 +1,4 @@
-GitHub repository: 
+GitHub repository: https://github.com/ArmandoCtrs/lolcode
 
 Executable file targets Windows.
 

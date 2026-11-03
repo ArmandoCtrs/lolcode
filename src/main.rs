@@ -124,7 +124,7 @@ pub struct SimpleLexicalAnalyzer {
     position: usize,
     current_build: String,
     pub tokens: Vec<String>,
-    pub positions: Vec<(usize, usize)>, // explain this and below
+    pub positions: Vec<(usize, usize)>,
     line: usize,
     col: usize,
     start: (usize, usize),
@@ -137,13 +137,15 @@ impl SimpleLexicalAnalyzer {
             position: 0,
             current_build: String::new(),
             tokens: Vec::new(),
-            positions: Vec::new(), //explain this and below
+            positions: Vec::new(),
             line: 1,
             col: 1,
             start: (1, 1),
         }
     }
 
+    //checking current build and pushing to a token to tokens was done twice; this reduces redundancy
+    //also the starting position of a token to the vector positions
     fn flush(&mut self) {
         if !self.current_build.is_empty() {
             self.tokens.push(std::mem::take(&mut self.current_build));
@@ -158,26 +160,22 @@ impl SimpleLexicalAnalyzer {
                 break;
             }
             if c.is_whitespace() {
-                self.flush(); //explain this
-                //if !self.current_build.is_empty() {
-                //    self.tokens.push(std::mem::take(&mut self.current_build));
-                //}
+                self.flush();
+                //moves position in conjuction with each character collected from get_char()
                 if c == '\n' { self.line += 1; self.col = 1; } else { self.col += 1; }
             } else {
-                if self.current_build.is_empty() { //explain this if block
+                //indicates start of new token and the start of a new token position; position is tracked by self.start
+                if self.current_build.is_empty() {
                     self.start = (self.line, self.col);
                 }
                 self.add_char(c);
-                self.col += 1; //explain this
+                self.col += 1;
             }
         }
-        //if !self.current_build.is_empty() {
-        //    self.tokens.push(std::mem::take(&mut self.current_build));
-        //}
-        //self.tokens.reverse();
+
         self.flush();
         self.tokens.reverse();
-        self.positions.reverse();
+        self.positions.reverse(); //reverses the corresponding position of each token to match the reversing of the tokens
     }
 }
 
@@ -196,7 +194,6 @@ impl LexicalAnalyzer for SimpleLexicalAnalyzer {
         self.current_build.push(c);
     }
 
-   
     fn lookup(&self, s: &str) -> bool {
         is_fixed_terminal(s) ||
         is_varname(s) ||
@@ -246,11 +243,11 @@ pub trait SyntaxAnalyzer {
 pub struct LolCodeCompiler {
     lexer: SimpleLexicalAnalyzer,
     current_tok: String,
-    current_pos: (usize, usize), //explain this and below
-    scopes: Vec<Scope>,
-    closed: HashMap<String, VarInfo>, // vars whose scope already ended (for nicer errors)
-    source_lines: Vec<String>,
-    filename: String,
+    current_pos: (usize, usize), //current position of token by line and column being examine by parser
+    scopes: Vec<Scope>, //vector of scopes; new scopes are pushed onto vector; when a scope ends it is popped
+    closed: HashMap<String, VarInfo>, //variables whose scope already ended (for nicer errors)
+    source_lines: Vec<String>, //lines of code from the lol file used for displaying errors
+    filename: String, //file name for more detailed error messages
     parse_tree: String //parse tree translated to HTML
 }
 
@@ -271,7 +268,7 @@ impl SyntaxAnalyzer for LolCodeCompiler {
 
     fn start(&mut self) {
         let candidate = self.lexer.tokens.pop().unwrap_or_default();
-        let pos = self.lexer.positions.pop().unwrap_or((1, 1)); //explain this
+        let pos = self.lexer.positions.pop().unwrap_or((1, 1)); //consume a position from the positions vector for each token consumed from the tokens vector
         if self.lexer.lookup(&candidate.to_uppercase()) { //changed cadidate to uppercase so that compiler is case insensitive
             self.current_tok = candidate;
             self.current_pos = pos;
@@ -411,7 +408,7 @@ impl SyntaxAnalyzer for LolCodeCompiler {
         //OIC
         if &self.current_tok.to_uppercase() == OIC {
             let _ = self.next_token();
-            self.parse_tree.push_str("\n</title>");
+            self.parse_tree.push_str("</title>");
         } else {
             return Err(format!(
                 "Syntax error: {} was found when OIC was expected",
@@ -1038,7 +1035,8 @@ impl SyntaxAnalyzer for LolCodeCompiler {
 
 impl Compiler for LolCodeCompiler {
     fn compile(&mut self, source: &str) {
-        self.source_lines = source.lines().map(String::from).collect(); //explain this
+        //iterates over the lines of source code, converts them from &str to String, and adds them to the source_lines vector
+        self.source_lines = source.lines().map(String::from).collect();
         self.lexer = SimpleLexicalAnalyzer::new(source);
         self.lexer.tokenize();
         self.start();
@@ -1046,7 +1044,7 @@ impl Compiler for LolCodeCompiler {
 
     fn next_token(&mut self) -> String {
         let candidate = self.lexer.tokens.pop().unwrap_or_default();
-        let pos = self.lexer.positions.pop().unwrap_or(self.current_pos); //explain this
+        let pos = self.lexer.positions.pop().unwrap_or(self.current_pos); //same purpose as in start(); consume a position each token consumed
         if self.lexer.lookup(&candidate.to_uppercase()) { //changed cadidate to uppercase so that compiler is case insensitive
             self.current_tok = candidate.clone();
             self.current_pos = pos; //explain this
@@ -1075,6 +1073,7 @@ impl Compiler for LolCodeCompiler {
     fn current_token(&self) -> String { self.current_tok.clone() }
     fn set_current_token(&mut self, tok: String) { self.current_tok = tok; }
 
+    //acts as one token lookahead
     fn peek_token(&self) -> String {
         self.lexer.tokens.last().cloned().unwrap_or_default()
     }
@@ -1085,18 +1084,20 @@ impl Compiler for LolCodeCompiler {
 //
 
 #[derive(Clone)]
-struct VarInfo {
+struct VarInfo { //used to store the value of a variable as well as its location by line and column
     value: String,
     line: usize,
     col: usize,
 }
-type Scope = HashMap<String, VarInfo>;
+type Scope = HashMap<String, VarInfo>; //an alias for a hashmap representing the different scopes
 
-impl LolCodeCompiler { //explain this whole implementation
+impl LolCodeCompiler {
     pub fn set_filename(&mut self, f: &str) { self.filename = f.to_string(); }
 
+    //creates a new scope and pushes it to the Scope Aliased vector
     fn push_scope(&mut self) { self.scopes.push(Scope::new()); }
 
+    //removes most recent scope from the Scope Aliased vector
     fn pop_scope(&mut self) {
         if let Some(scope) = self.scopes.pop() {
             for (name, info) in scope {
@@ -1105,14 +1106,17 @@ impl LolCodeCompiler { //explain this whole implementation
         }
     }
 
+    //returns variable from most recent scope
     fn get_var_value(&self, name: &str) -> Option<String> {
         self.lookup_var(name).map(|info| info.value.clone())
     }
 
+    //looks up variable if it exists in any scope
     fn lookup_var(&self, name: &str) -> Option<&VarInfo> {
         self.scopes.iter().rev().find_map(|s| s.get(name))
     }
 
+    //adds variable value and position to a VarInfo object which, along with the variable name, is inserted as a key value pair into the Scopes Aliased vector
     fn declare_var(&mut self, name: String, value: String, pos: (usize, usize)) {
         let info = VarInfo { value, line: pos.0, col: pos.1 };
         if let Some(scope) = self.scopes.last_mut() {
@@ -1120,7 +1124,7 @@ impl LolCodeCompiler { //explain this whole implementation
         }
     }
 
-    // Renders a rustc-style diagnostic for scoping errros
+    // Renders a rustc-style diagnostic for scoping errors
     fn diagnostic(&self, msg: &str, pos: (usize, usize), len: usize,
                   label: &str, notes: &[String]) -> String {
         let (line, col) = pos;
@@ -1140,6 +1144,8 @@ impl LolCodeCompiler { //explain this whole implementation
         out
     }
 
+    //checks for undefined variables; provides a message if they were once in scope, but scope is gone
+    //otherwise, renders a diagnostic message by calling diagnostic()
     fn undefined_var_error(&self, name: &str, pos: (usize, usize)) -> String {
         let mut notes = Vec::new();
         if let Some(old) = self.closed.get(name) {
