@@ -1,0 +1,15 @@
+Making variables and functions to handle the legal terminal values:
+https://claude.ai/share/adecff83-9c8e-48ab-a278-ca0b64de327c
+
+
+Change function, is_text, code to handle non-standard characters such as #:
+https://claude.ai/share/adecff83-9c8e-48ab-a278-ca0b64de327c
+
+Implementing the static scope variable resolution:
+https://claude.ai/share/ba862d80-5b5d-4e9f-a615-50d0a741e58b
+
+Formatting file name with new html extension:
+https://chatgpt.com/share/6ae920c2-b604-83ea-b84b-2d7940785e26
+
+Returning variables:
+https://claude.ai/share/ba862d80-5b5d-4e9f-a615-50d0a741e58b
